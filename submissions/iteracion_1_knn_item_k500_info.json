@@ -1,0 +1,14 @@
+{
+    "equipo": "Jacobo_Cousillas_Xaime_Paz_Nicolas_Aller",
+    "metodo": "KNN item-based (Iteración 1)",
+    "hiperparametros": {
+        "mode": "item",
+        "k": 500
+    },
+    "estadisticas": {
+        "playlists_procesadas": 10000,
+        "playlists_con_fallback": 1015,
+        "recomendaciones_por_playlist": 500,
+        "tiempo_ejecucion_segundos": 618.48
+    }
+}
