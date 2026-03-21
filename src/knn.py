@@ -9,11 +9,18 @@ Implementa dos variantes:
   Item-based (Eq. 2):
       r̂(u,i) = Σ_{j ∈ Jᵢ} sim(i,j) · r(u,j)
 
+      Jᵢ = k vecinos más similares del item i.
+      r(u,j) = 1 si j está en la semilla, 0 si no.
+
+      Equivalente invertido eficiente:
+      Para cada track semilla j, encontrar sus k vecinos más similares
+      y acumular sim(vecino, j) en el score del vecino.
+
 En ambos casos la similitud es coseno y k es un hiperparámetro.
 
 Uso:
-    python src/knn.py --mode user --k 50
-    python src/knn.py --mode item --k 50
+    python src/knn.py --mode user --k 500
+    python src/knn.py --mode item --k 500
 """
 
 import argparse
@@ -78,8 +85,6 @@ def recommend_user_based(
     matrix_norm_csr: csr_matrix,
     matrix_norm_csc: csc_matrix,
     idx_to_track: dict,
-    seed_uris: Set[str],
-    track_to_idx: dict,
     k: int,
 ) -> list:
     if not seed_indices:
@@ -88,10 +93,9 @@ def recommend_user_based(
     n_seed = len(seed_indices)
     seed_norm_val = 1.0 / np.sqrt(n_seed)
 
-    # matrix_norm_csr: (n_playlists × n_tracks)
-    # matrix_norm_csc[:, seed_indices] → (n_playlists × n_seed): playlists que tienen esos tracks
+    # Similitudes: extraer columnas semilla de CSC y sumar
     seed_cols = matrix_norm_csc[:, seed_indices]
-    sims_dense = to_dense_1d(seed_cols.sum(axis=1)) * seed_norm_val  # (n_playlists,)
+    sims_dense = to_dense_1d(seed_cols.sum(axis=1)) * seed_norm_val
 
     nonzero_indices = np.where(sims_dense > 0)[0]
     if len(nonzero_indices) == 0:
@@ -114,7 +118,7 @@ def recommend_user_based(
         shape=(1, k_actual),
         dtype=np.float32,
     )
-    neighbor_matrix = matrix_norm_csr[topk_indices]   # (k × n_tracks)
+    neighbor_matrix = matrix_norm_csr[topk_indices]
     scores = to_dense_1d(weights_row @ neighbor_matrix)
 
     return top500_from_scores(scores, seed_indices, idx_to_track)
@@ -129,52 +133,69 @@ def recommend_item_based(
     item_norm_csr: csr_matrix,
     item_norm_csc: csc_matrix,
     idx_to_track: dict,
-    seed_uris: Set[str],
-    track_to_idx: dict,
     k: int,
 ) -> list:
     """
-    item_norm_csr: (n_tracks × n_playlists) con filas normalizadas.
-    Cada track es un vector sobre el espacio de playlists.
+    Formulación correcta de item-based KNN:
 
-    score(i) = item_norm[i] · centroide_semilla
-             = Σ_{j ∈ semilla} sim(i, j)
+        r̂(u,i) = Σ_{j ∈ Jᵢ} sim(i,j) · r(u,j)
 
-    centroide_semilla = Σ_{j ∈ semilla} item_norm[j]  →  vector (n_playlists,)
+    donde Jᵢ son los k vecinos más similares del item i,
+    y r(u,j) = 1 si j está en la semilla.
 
-    Truco CSC: solo multiplicamos contra las columnas (playlists) donde
-    el centroide es no-nulo, que son las playlists que contienen al menos
-    un track de la semilla.
+    Equivalente invertido (eficiente):
+    Para cada track semilla j, calculamos sus k vecinos más similares
+    y acumulamos sim(vecino, j) en scores[vecino].
+
+    Esto es correcto porque:
+        score(i) = Σ_{j ∈ semilla} sim(i,j) · [i ∈ top-k vecinos de j]
+    que es la misma cantidad vista desde j en vez de desde i.
+
+    item_norm_csr: (n_tracks × n_playlists), filas normalizadas.
+    Similitud coseno entre tracks i y j = item_norm_csr[i] · item_norm_csr[j].
     """
     if not seed_indices:
         return []
 
-    # Limitar semilla a k tracks si k < |semilla|
-    if k < len(seed_indices):
-        seed_norms = np.array(
-            item_norm_csr[seed_indices].power(2).sum(axis=1)
-        ).flatten()
-        topk_seed_local = np.argpartition(-seed_norms, k)[:k]
-        effective_seed = [seed_indices[i] for i in topk_seed_local]
-    else:
-        effective_seed = seed_indices
+    n_tracks = item_norm_csr.shape[0]
+    scores = np.zeros(n_tracks, dtype=np.float32)
 
-    # item_norm_csr[effective_seed]: (|eff_seed| × n_playlists)
-    seed_vecs = item_norm_csr[effective_seed]               # (|eff_seed| × n_playlists)
-    seed_centroid = to_dense_1d(seed_vecs.sum(axis=0))      # (n_playlists,)
+    for j in seed_indices:
+        # Vector del track semilla j: (1 × n_playlists)
+        j_vec = item_norm_csr[j]  # sparse (1 × n_playlists)
 
-    # Solo playlists con centroide > 0
-    nonzero_pl = np.where(seed_centroid > 0)[0]
-    if len(nonzero_pl) == 0:
-        return []
+        # Similitudes de j con todos los tracks: (n_tracks,)
+        # = item_norm_csr @ j_vec.T
+        # Usamos CSC para extraer solo playlists donde j_vec es no-nulo
+        j_nonzero_pl = j_vec.indices  # playlists donde aparece j
+        if len(j_nonzero_pl) == 0:
+            continue
 
-    # item_norm_csc tiene shape (n_tracks × n_playlists)
-    # item_norm_csc[:, nonzero_pl] → (n_tracks × |nonzero_pl|)
-    sub_item = item_norm_csc[:, nonzero_pl]                 # CSC slice eficiente
-    sub_centroid = seed_centroid[nonzero_pl].astype(np.float32)
+        sub_item = item_norm_csc[:, j_nonzero_pl]       # (n_tracks × |pl_j|)
+        sub_j = np.asarray(j_vec[:, j_nonzero_pl].todense()).flatten().astype(np.float32)
+        sims_j = to_dense_1d(sub_item @ sub_j)          # (n_tracks,) similitudes con j
 
-    # scores[i] = sub_item[i] · sub_centroid → (n_tracks,)
-    scores = to_dense_1d(sub_item @ sub_centroid)
+        # Top-k vecinos de j (excluir j mismo)
+        sims_j[j] = 0.0
+        nonzero_mask = sims_j > 0
+        nonzero_idx = np.where(nonzero_mask)[0]
+
+        if len(nonzero_idx) == 0:
+            continue
+
+        nonzero_sims = sims_j[nonzero_idx]
+
+        if k >= len(nonzero_idx):
+            topk_local = np.argsort(-nonzero_sims)
+        else:
+            topk_local = np.argpartition(-nonzero_sims, k)[:k]
+            topk_local = topk_local[np.argsort(-nonzero_sims[topk_local])]
+
+        topk_item_indices = nonzero_idx[topk_local]
+        topk_item_sims = nonzero_sims[topk_local]
+
+        # Acumular similitudes en scores
+        scores[topk_item_indices] += topk_item_sims
 
     return top500_from_scores(scores, seed_indices, idx_to_track)
 
@@ -207,17 +228,14 @@ def generate_knn(mode: str = "user", k: int = 50):
 
     logging.info("Normalizando y convirtiendo matriz...")
     matrix_float = matrix.astype(np.float32)
-
-    # matrix_norm_csr: (n_playlists × n_tracks), filas normalizadas → user-based
     matrix_norm_csr = normalize_rows(matrix_float)
     matrix_norm_csc = matrix_norm_csr.tocsc()
 
     if mode == "item":
         logging.info("Preparando vista item-based...")
-        # item_norm_csr: (n_tracks × n_playlists), filas normalizadas → item-based
         matrix_T = matrix_norm_csr.T.tocsr()   # (n_tracks × n_playlists)
         item_norm_csr = normalize_rows(matrix_T)
-        item_norm_csc = item_norm_csr.tocsc()  # columnas = playlists (990k)
+        item_norm_csc = item_norm_csr.tocsc()
         logging.info(f"item_norm shape: {item_norm_csr.shape}")
     else:
         item_norm_csr = item_norm_csc = None
@@ -258,12 +276,12 @@ def generate_knn(mode: str = "user", k: int = 50):
                     if mode == "user":
                         recommendations = recommend_user_based(
                             seed_indices, matrix_norm_csr, matrix_norm_csc,
-                            idx_to_track, seeds, track_to_idx, k
+                            idx_to_track, k
                         )
                     else:
                         recommendations = recommend_item_based(
                             seed_indices, item_norm_csr, item_norm_csc,
-                            idx_to_track, seeds, track_to_idx, k
+                            idx_to_track, k
                         )
 
                     if len(recommendations) < RECOMMENDATIONS_COUNT:
