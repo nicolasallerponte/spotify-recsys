@@ -1,20 +1,10 @@
 """
 Iteración 1 — Neighbourhood-based Collaborative Filtering
-==========================================================
+
 Implementa dos variantes:
 
-  User-based (Eq. 1):
-      r̂(u,i) = Σ_{v ∈ Vᵤ} sim(u,v) · r(v,i)
-
-  Item-based (Eq. 2):
-      r̂(u,i) = Σ_{j ∈ Jᵢ} sim(i,j) · r(u,j)
-
-      Jᵢ = k vecinos más similares del item i.
-      r(u,j) = 1 si j está en la semilla, 0 si no.
-
-      Equivalente invertido eficiente:
-      Para cada track semilla j, encontrar sus k vecinos más similares
-      y acumular sim(vecino, j) en el score del vecino.
+  User-based
+  Item-based
 
 En ambos casos la similitud es coseno y k es un hiperparámetro.
 
@@ -42,9 +32,7 @@ TEAM_EMAIL = "jacobo.cousillas@udc.es_xaime.paz.ollero@udc.es_nicolas.aller@udc.
 RECOMMENDATIONS_COUNT = 500
 
 
-# ---------------------------------------------------------------------------
 # Utilidades
-# ---------------------------------------------------------------------------
 
 def to_dense_1d(x) -> np.ndarray:
     if issparse(x):
@@ -76,9 +64,7 @@ def top500_from_scores(scores: np.ndarray, seed_indices: list, idx_to_track: dic
     return [idx_to_track[nonzero_indices[i]] for i in order if nonzero_scores[i] > 0]
 
 
-# ---------------------------------------------------------------------------
 # User-based KNN
-# ---------------------------------------------------------------------------
 
 def recommend_user_based(
     seed_indices: list,
@@ -124,9 +110,7 @@ def recommend_user_based(
     return top500_from_scores(scores, seed_indices, idx_to_track)
 
 
-# ---------------------------------------------------------------------------
 # Item-based KNN
-# ---------------------------------------------------------------------------
 
 def recommend_item_based(
     seed_indices: list,
@@ -200,9 +184,8 @@ def recommend_item_based(
     return top500_from_scores(scores, seed_indices, idx_to_track)
 
 
-# ---------------------------------------------------------------------------
+
 # Main
-# ---------------------------------------------------------------------------
 
 def generate_knn(mode: str = "user", k: int = 50):
     start_time = time.time()
