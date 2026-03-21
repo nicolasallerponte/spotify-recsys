@@ -106,8 +106,8 @@ python src/verify_submission.py iteracion_1_knn_user_k500.csv
 | User-based     | 100     | 0.157843     | 0.321931     | 4.8453     |
 | User-based     | 250     | 0.159274     | 0.339983     | 4.5208     |
 | User-based     | **500** | **0.158728** | **0.344748** | **4.4764** |
-| Item-based     | 100     | —            | —            | —          |
-| Item-based     | 250     | —            | —            | —          |
+| Item-based     | 100     | 0.148397     | 0.305787     | 5.9639     |
+| Item-based     | 250     | 0.151660     | 0.322691     | 5.8864     |
 | Item-based     | 500     | 0.153670     | 0.329705     | 5.8912     |
 
 ### Análisis
