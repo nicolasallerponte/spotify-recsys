@@ -1,11 +1,11 @@
 """
-Iteración 2 — PureSVD (Matrix Factorization via Truncated SVD)
+Iteración 2 - PureSVD (Matrix Factorization via Truncated SVD)
 
 Implementa dos variantes:
 
-  Inductive  — SVD solo sobre datos de entrenamiento; las playlists de test
+  Inductive  - SVD solo sobre datos de entrenamiento; las playlists de test
                se proyectan al espacio latente.
-  Transductive — SVD sobre train + test juntos; los vectores latentes de test
+  Transductive - SVD sobre train + test juntos; los vectores latentes de test
                  salen directamente de la descomposición.
 
 Uso:

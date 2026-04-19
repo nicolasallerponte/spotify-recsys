@@ -1,5 +1,5 @@
 """
-Iteración 1 — Neighbourhood-based Collaborative Filtering
+Iteración 1 - Neighbourhood-based Collaborative Filtering
 
 Implementa dos variantes:
 

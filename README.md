@@ -1,4 +1,4 @@
-# Práctica Sistemas de Recomendación — Iteraciones 1 y 2
+# Práctica Sistemas de Recomendación - Iteraciones 1 y 2
 
 Este directorio contiene el código y los resultados de las **Iteraciones 1 y 2**, desarrolladas para la asignatura de Sistemas de Recomendación del Grado en Ciencia e Ingeniería de Datos (UDC).
 
@@ -22,13 +22,13 @@ El filtrado colaborativo por vecindad estima el score de un track `i` para una p
 
 ### User-based
 
-La idea es que busquemos las playlists del dataset de entrenamiento más parecidas a la tuya y recomendemos lo que escuchan. Para una playlist de test con unas semillas dadas, buscamos las `k` playlists de train con mayor similitud coseno. Luego agregamos sus tracks ponderados por esa similitud — los tracks que aparecen en muchas playlists similares y con alta similitud suben en el ranking.
+La idea es que busquemos las playlists del dataset de entrenamiento más parecidas a la tuya y recomendemos lo que escuchan. Para una playlist de test con unas semillas dadas, buscamos las `k` playlists de train con mayor similitud coseno. Luego agregamos sus tracks ponderados por esa similitud - los tracks que aparecen en muchas playlists similares y con alta similitud suben en el ranking.
 
 Es similar a una recomendación del tipo "usuarios con gustos parecidos también escucharon esto".
 
 ### Item-based
 
-La idea es que para cada track de la semilla, busquemos los tracks más similares a él y los recomendemos. Dos tracks son similares si aparecen juntos en las mismas playlists. Para cada track semilla `j` encontramos sus `k` vecinos más similares y acumulamos esas similitudes en sus scores — un track candidato que es similar a varios tracks de la semilla acumula más puntuación.
+La idea es que para cada track de la semilla, busquemos los tracks más similares a él y los recomendemos. Dos tracks son similares si aparecen juntos en las mismas playlists. Para cada track semilla `j` encontramos sus `k` vecinos más similares y acumulamos esas similitudes en sus scores - un track candidato que es similar a varios tracks de la semilla acumula más puntuación.
 
 Es similar a una recomendación del tipo "porque escuchas X, Y, Z, aquí hay canciones parecidas".
 
@@ -96,13 +96,13 @@ python src/verify_submission.py iteracion_1_knn_user_k500.csv
 
 ---
 
-## Resultados — Iteración 1
+## Resultados - Iteración 1
 
 ### Comparativa completa
 
 | Método         | k       | R-Precision  | NDCG         | Clicks     |
 | -------------- | ------- | ------------ | ------------ | ---------- |
-| Baseline (it0) | —       | 0.025670     | 0.090437     | 17.3094    |
+| Baseline (it0) | -       | 0.025670     | 0.090437     | 17.3094    |
 | User-based     | 100     | 0.157843     | 0.321931     | 4.8453     |
 | User-based     | 250     | 0.159274     | 0.339983     | 4.5208     |
 | User-based     | **500** | **0.158728** | **0.344748** | **4.4764** |
@@ -112,7 +112,7 @@ python src/verify_submission.py iteracion_1_knn_user_k500.csv
 
 ### Análisis
 
-**Mejora respecto al baseline**: ambas variantes de KNN suponen una mejora muy significativa sobre el baseline de popularidad. El NDCG pasa de 0.090 a ~0.345 en la mejor configuración — casi **4x de mejora**. Esto confirma que la personalización por vecindad aporta mucho valor frente a un ranking global.
+**Mejora respecto al baseline**: ambas variantes de KNN suponen una mejora muy significativa sobre el baseline de popularidad. El NDCG pasa de 0.090 a ~0.345 en la mejor configuración - casi **4x de mejora**. Esto confirma que la personalización por vecindad aporta mucho valor frente a un ranking global.
 
 **User-based vs Item-based**: user-based obtiene mejores resultados en todas las métricas y es además más rápido (~2 minutos frente a ~40 minutos para k=500). La ventaja de user-based en este dataset tiene sentido ya que las playlists del MPD son entidades ricas con decenas o cientos de tracks, lo que hace que la similitud entre playlists sea una señal muy informativa. En cambio, la similitud entre tracks depende de cuántas playlists comparten, y muchos tracks tienen vectores muy dispersos que producen similitudes poco fiables.
 
@@ -122,7 +122,7 @@ python src/verify_submission.py iteracion_1_knn_user_k500.csv
 
 ---
 
-## Iteración 2 — PureSVD (Factorización Matricial)
+## Iteración 2 - PureSVD (Factorización Matricial)
 
 ### Algoritmo: PureSVD
 
@@ -200,13 +200,13 @@ python src/verify_submission.py iteracion_2_puresvd_inductive_k100.csv
 
 ---
 
-## Resultados — Iteración 2
+## Resultados - Iteración 2
 
 ### Comparativa completa
 
 | Método                   | f       | R-Precision  | NDCG         | Clicks      |
 | ------------------------ | ------- | ------------ | ------------ | ----------- |
-| Baseline (it0)           | —       | 0.025670     | 0.090437     | 17.3094     |
+| Baseline (it0)           | -       | 0.025670     | 0.090437     | 17.3094     |
 | KNN User-based (it1)     | 500     | 0.158728     | 0.344748     | 4.4764      |
 | PureSVD inductive        | 50      | 0.119531     | 0.277740     | 6.4752      |
 | PureSVD inductive        | **100** | **0.127230** | **0.287612** | **5.7683**  |
