@@ -16,23 +16,44 @@ env/
 # uv
 .uv/
 
-# Data
+# Data — datasets pesados no van al repo
 data/raw/*.zip
 data/raw/toy_dataset/
 data/processed/
 data/ground_truth/
 
-# Submissions
-submissions/*.csv
+# Submissions — no se versiona nada de esto
+submissions/
 
-# Metadata de submissions
-!submissions/*.json
+enunciados/
 
 # macOS
 .DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
 
 # IDEs
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Logs
+*.log
+
+# Tests y cobertura
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Variables de entorno
+.env
+*.env
+
+# Temporales Python
+*.spec
