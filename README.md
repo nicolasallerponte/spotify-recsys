@@ -1,4 +1,4 @@
-# Práctica Sistemas de Recomendación - Iteraciones 1 y 2
+# Práctica Sistemas de Recomendación - Iteraciones 0, 1, 2 y 3
 
 Este directorio contiene el código y los resultados de las **Iteraciones 1 y 2**, desarrolladas para la asignatura de Sistemas de Recomendación del Grado en Ciencia e Ingeniería de Datos (UDC).
 
@@ -12,7 +12,12 @@ Este directorio contiene el código y los resultados de las **Iteraciones 1 y 2*
 
 ## Contexto y Objetivo
 
-En la Iteración 0 implementamos una propuesta basada en popularidad global que obtuvo un NDCG de **0.0904**. El objetivo de esta iteración es superar ese resultado mediante un enfoque personalizado basado en vecindad.
+Este repositorio documenta cuatro iteraciones progresivas de sistemas de recomendación aplicados al Spotify Million Playlist Dataset Challenge. En cada iteración se aumenta la sofisticación del método:
+
+- **Iteración 0**: Baseline de popularidad global → NDCG **0.090**
+- **Iteración 1**: Filtrado colaborativo por vecindad (KNN user/item-based) → NDCG **0.345**
+- **Iteración 2**: Factorización matricial PureSVD (inductive y transductive) → NDCG **0.288**
+- **Iteración 3**: Métodos lineales escasos SLIM y FISM con dataset reducido → NDCG **0.339**
 
 ---
 
@@ -67,6 +72,8 @@ Exploramos paralelizar el bucle de playlists con `joblib.Parallel` usando thread
 - `src/data_loader.py`: Procesa el ZIP de entrenamiento y construye la matriz CSR de interacciones, los diccionarios de mapeo y el ranking de popularidad. Genera `data/processed/`.
 - `src/baseline.py`: Baseline de popularidad global (Iteración 0). Genera `submissions/iteracion_0_baseline.csv`.
 - `src/knn.py`: Implementación principal de KNN colaborativo. Acepta `--mode user/item` y `--k`. Genera el CSV de submission correspondiente.
+- `src/puresvd.py`: Implementación de PureSVD (Iteración 2). Acepta `--mode inductive|transductive` y `--k`.
+- `src/slim.py`: Implementación de SLIM y FISM (Iteración 3). Lee de `data/trimmed_dataset.zip`. Acepta `--mode slim|fism` y múltiples hiperparámetros.
 - `src/evaluation.py`: Calcula R-Precision, NDCG y Clicks comparando una submission con el ground truth. Acepta el nombre del fichero como argumento.
 - `src/verify_submission.py`: Verifica que el CSV cumple el formato del reto (500 tracks, sin duplicados, URIs válidas).
 
@@ -224,3 +231,67 @@ python src/verify_submission.py iteracion_2_puresvd_inductive_k100.csv
 **Inductive vs Transductive**: los resultados son prácticamente idénticos (diferencias en el cuarto decimal). Esto indica que las semillas de test son tan escasas respecto al volumen de entrenamiento (990k playlists) que incluirlas en la factorización apenas altera los vectores latentes. La variante inductive es por tanto la opción práctica: mismo rendimiento, sin necesidad de refactorizar cuando llegan nuevas playlists.
 
 **Mejor configuración**: `--mode inductive --f 100` con NDCG=**0.287612** (o transductive con resultado casi idéntico).
+
+---
+
+## Iteración 3 - SLIM & FISM
+
+### Algoritmos
+
+**SLIM** aprende una matriz de similitud ítem-ítem W resolviendo:
+
+```
+min  ||X – XW||²_F  +  λ||W||₁  +  β||W||²_F   s.t.  diag(W) = 0,  W ≥ 0
+```
+
+**FISM** factoriza esa matriz como S = PQᵀ con P, Q ∈ ℝ^{n×f}, usando la misma pérdida con regularización L1+L2 sobre P y Q. El scoring es `ŷ(u,:) = (x_u @ P) @ Qᵀ`, sin materializar PQᵀ.
+
+---
+
+### Dataset
+
+SLIM requiere una matriz W de n_items × n_items. Con el dataset completo (~2.26M tracks) eso son ~20 PB - inviable. El dataset trimado (`data/trimmed_dataset.zip`, 1704 tracks) hace W manejable (~11.6 MB).
+
+| Conjunto | Playlists | Tracks | Interacciones | Densidad |
+|----------|-----------|--------|---------------|----------|
+| Train    | 4 347     | 1 704  | 6 779         | 0.092%   |
+| Test     | 29        | -      | -             | -        |
+
+20 de 29 playlists de test tienen 0 semillas (cold-start por diseño del dataset).
+
+---
+
+### Decisiones de implementación
+
+**`reduce_sum` en lugar de `reduce_mean`:** con `reduce_mean` el gradiente de reconstrucción por co-ocurrencia queda en ~2.7×10⁻⁷ (dividido entre 7.4M elementos), aplastado por el gradiente de L1 incluso con λ=0.001. W converge a cero. Con `reduce_sum` el gradiente es ~2 por co-ocurrencia - del mismo orden que la regularización - y W aprende correctamente (99.8% sparse, capturando las ~5400 co-ocurrencias reales).
+
+**Adam en lugar de SGD:** el esqueleto usa SGD, pero con gradientes de escala muy variable (datos ultra-sparse) SGD requiere ajuste fino del learning rate. Adam adapta la tasa por parámetro y converge en ~500 épocas sin tunear.
+
+**Proyección post-gradiente (SLIM):** las restricciones `diag(W)=0` y `W≥0` se aplican como proyección tras cada actualización (`W.assign(tf.maximum(W, 0.0) * diag_mask)`). `diag(W)=0` evita la solución trivial W=I; `W≥0` hace los scores interpretables como similitudes.
+
+**Fallback a popularidad:** playlists sin semillas (o con menos de 500 candidatos con score>0) se completan con el ranking de popularidad del training. Para FISM, sin restricción W≥0, los scores pueden ser negativos → más dependencia del fallback.
+
+---
+
+### Ejecución
+
+```bash
+python src/slim.py --mode slim --epochs 500 --lr 0.01 --lambda-a 5.0 --lambda-b 1.0
+python src/slim.py --mode fism --epochs 2000 --lr 0.001 --lambda-a 1.0 --lambda-b 0.0 --factors 64
+```
+
+---
+
+### Resultados
+
+| Método                      | Epochs | f  | R-Precision  | NDCG         | Clicks      |
+| --------------------------- | ------ | -- | ------------ | ------------ | ----------- |
+| Baseline (it0)              | -      | -  | 0.025670     | 0.090437     | 17.3094     |
+| KNN User-based (it1)        | -      | 500| 0.158728     | 0.344748     | 4.4764      |
+| PureSVD inductive (it2)     | -      | 100| 0.127230     | 0.287612     | 5.7683      |
+| **SLIM** (λ=5, β=1)        | 500    | -  | 0.068966     | **0.339358** | **5.7586**  |
+| FISM (f=64, λ=1, β=0)      | 2000   | 64 | 0.103448     | 0.291069     | 11.7931     |
+
+*Evaluación sobre los 29 playlists del dataset trimado - no comparable directamente con it1/it2 (datasets distintos).*
+
+SLIM iguala prácticamente al KNN user-based (NDCG 0.339 vs 0.345) aprendiendo las co-ocurrencias mediante optimización en lugar de calcularlas directamente. FISM pierde precisión porque la factorización de rango bajo (f=64) no representa bien los ~5400 pares con co-ocurrencia real en un dataset tan sparse.

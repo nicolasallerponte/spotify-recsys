@@ -50,7 +50,7 @@ def verify(submission_filename: str = None):
                 errors += 1
 
         if errors == 0:
-            logging.info(f"OK — {len(pids_vistos)} playlists verificadas sin errores.")
+            logging.info(f"OK - {len(pids_vistos)} playlists verificadas sin errores.")
         else:
             logging.warning(f"{errors} errores encontrados.")
 

@@ -16,16 +16,21 @@ env/
 # uv
 .uv/
 
-# Data — datasets pesados no van al repo
-data/raw/*.zip
-data/raw/toy_dataset/
+# Datos grandes (dataset completo ~5.5 GB)
+data/raw/
 data/processed/
 data/ground_truth/
+!data/trimmed_dataset.zip
+!data/slim_skeleton.py
 
-# Submissions — no se versiona nada de esto
+# Submissions generadas
 submissions/
 
+# Enunciados
 enunciados/
+
+# Claude Code
+.claude/
 
 # macOS
 .DS_Store
@@ -55,5 +60,6 @@ htmlcov/
 .env
 *.env
 
-# Temporales Python
-*.spec
+# Zips de entrega
+*.zip
+!data/trimmed_dataset.zip
